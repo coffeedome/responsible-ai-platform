@@ -46,6 +46,9 @@ def main():
                 st.write(description)
 
     with col2:
+        # Apply the main panel's color
+        st.markdown('<div class="main">', unsafe_allow_html=True)
+
         # Session state for maintaining chat history
         if "history" not in st.session_state:
             st.session_state.history = []
@@ -83,12 +86,28 @@ def main():
                     index += 1
 
             if user_message or genai_message:
+                # Generate and display mock fairness metrics
+                metrics = generate_fairness_metrics(user_message, genai_message)
                 expander_label = f"You: {user_message} | GenAI: {genai_message}"
-                with st.expander(expander_label, expanded=False):
-                    # Generate and display mock fairness metrics
-                    metrics = generate_fairness_metrics(user_message, genai_message)
+
+                # Determine if any metric is within 0.2 of 1
+                has_high_metric = any(float(value) >= 0.8 for value in metrics.values())
+
+                # Red icon if any metric is high
+                red_icon = "🔴" if has_high_metric else ""
+
+                # Apply CSS styling for larger font size
+                header_style = "font-size: 24px; font-weight: bold;"  # Adjust font size and weight here
+
+                with st.expander(expander_label + " " + red_icon, expanded=False):
                     for metric, value in metrics.items():
-                        st.write(f"**{metric}:** {value}")
+                        color_style = "color:red;" if float(value) >= 0.8 else ""
+                        st.markdown(
+                            f"<div style='{color_style}'><b>{metric}:</b> {value}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
