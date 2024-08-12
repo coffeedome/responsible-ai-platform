@@ -1,36 +1,40 @@
+import os
 import streamlit as st
-import random
+
+from utils.genai import generate_fairness_metrics, mock_genai_response
+from utils.sagemaker_clarify import get_clarify_metrics
+
+s3_bucket_name = os.getenv("S3_BUCKET_NAME", "respai-clarify-bucket")
+sagemaker_role_arn = os.getenv(
+    "SAGEMAKER_ROLE_ARN", "arn:aws:iam::914295800626:role/sagemaker-clarify-role"
+)
 
 # Streamlit page configuration
-st.set_page_config(page_title="GenAI Chatbot", layout="wide")
-
-
-# Mocked function to simulate GenAI API response
-def mock_genai_response(prompt):
-    return f"Mock response to: '{prompt}'"
-
-
-# Function to generate mock fairness metrics
-def generate_fairness_metrics(prompt, response):
-    # Generate some mock metrics (e.g., random values for demonstration)
-    return {
-        "Demographic Parity": f"{random.uniform(0.8, 1.0):.2f}",
-        "Equal Opportunity": f"{random.uniform(0.7, 0.9):.2f}",
-        "Predictive Parity": f"{random.uniform(0.6, 0.8):.2f}",
-        "Disparate Impact": f"{random.uniform(0.5, 1.0):.2f}",
-        "Fairness Through Unawareness": f"{random.uniform(0.4, 0.7):.2f}",
-    }
+st.set_page_config(page_title="RespAI", layout="wide")
 
 
 # Streamlit app
 def main():
-    st.title("GenAI Chatbot")
+    st.title("Responsible AI Platform")
+
+    # Initialize session state variables
+    if "history" not in st.session_state:
+        st.session_state.history = []
+    if "use_clarify" not in st.session_state:
+        st.session_state.use_clarify = False
+    if "show_modal" not in st.session_state:
+        st.session_state.show_modal = False
+    if "error_message" not in st.session_state:
+        st.session_state.error_message = ""
 
     # Create two columns for layout
     col1, col2 = st.columns([1, 3])
 
     with col1:
         st.subheader("Fairness Metrics")
+
+        # Toggle for enabling/disabling SageMaker Clarify
+        use_sagemaker_clarify = st.checkbox("Use SageMaker Clarify", value=False)
 
         metrics_info = {
             "Demographic Parity": "Ensures that the decision-making process is fair across different demographic groups.",
@@ -46,66 +50,78 @@ def main():
                 st.write(description)
 
     with col2:
-        # Apply the main panel's color
         st.markdown('<div class="main">', unsafe_allow_html=True)
 
-        # Session state for maintaining chat history
-        if "history" not in st.session_state:
-            st.session_state.history = []
+        # Update session state with the toggle value
+        st.session_state.use_clarify = use_sagemaker_clarify
 
-        # Input text
-        user_input = st.text_input("You:", "")
+        # Check if we need to show the error modal
+        if st.session_state.show_modal:
+            st.error(f"An error occurred: {st.session_state.error_message}")
+            if st.button("OK"):
+                st.session_state.show_modal = False  # Hide the modal immediately
+                st.session_state.error_message = ""  # Clear the error message
+                st.session_state.use_clarify = (
+                    False  # Go back to original use clarify state
+                )
+                st.rerun()  # Rerun the script immediately to avoid the double-click issue
 
-        if st.button("Send") or user_input:
-            # Append user input to history
-            st.session_state.history.append({"role": "user", "content": user_input})
+        else:
+            # Input text
+            user_input = st.text_input("You:", "")
 
-            # Get response from the mocked GenAI
-            genai_response = mock_genai_response(user_input)
+            if st.button("Send") or user_input:
+                st.session_state.history.append({"role": "user", "content": user_input})
 
-            # Append mocked GenAI response to history
-            st.session_state.history.append(
-                {"role": "genai", "content": genai_response}
-            )
+                genai_response = mock_genai_response(user_input)
+                st.session_state.history.append(
+                    {"role": "genai", "content": genai_response}
+                )
 
-        # Display chat history with combined dropdown
-        index = 0
-        while index < len(st.session_state.history):
-            user_message = None
-            genai_message = None
+            index = 0
+            while index < len(st.session_state.history):
+                user_message = None
+                genai_message = None
 
-            # Collect messages for the current dropdown
-            if st.session_state.history[index]["role"] == "user":
-                user_message = st.session_state.history[index]["content"]
-                index += 1
-                if (
-                    index < len(st.session_state.history)
-                    and st.session_state.history[index]["role"] == "genai"
-                ):
-                    genai_message = st.session_state.history[index]["content"]
+                if st.session_state.history[index]["role"] == "user":
+                    user_message = st.session_state.history[index]["content"]
                     index += 1
+                    if (
+                        index < len(st.session_state.history)
+                        and st.session_state.history[index]["role"] == "genai"
+                    ):
+                        genai_message = st.session_state.history[index]["content"]
+                        index += 1
 
-            if user_message or genai_message:
-                # Generate and display mock fairness metrics
-                metrics = generate_fairness_metrics(user_message, genai_message)
-                expander_label = f"You: {user_message} | GenAI: {genai_message}"
-
-                # Determine if any metric is within 0.2 of 1
-                has_high_metric = any(float(value) >= 0.8 for value in metrics.values())
-
-                # Red icon if any metric is high
-                red_icon = "🔴" if has_high_metric else ""
-
-                # Apply CSS styling for larger font size
-                header_style = "font-size: 24px; font-weight: bold;"  # Adjust font size and weight here
-
-                with st.expander(expander_label + " " + red_icon, expanded=False):
-                    for metric, value in metrics.items():
-                        color_style = "color:red;" if float(value) >= 0.8 else ""
-                        st.markdown(
-                            f"<div style='{color_style}'><b>{metric}:</b> {value}</div>",
-                            unsafe_allow_html=True,
+                if user_message or genai_message:
+                    if st.session_state.use_clarify:
+                        metrics = get_clarify_metrics(
+                            user_message,
+                            genai_message,
+                            s3_bucket_name,
+                            sagemaker_role_arn,
                         )
+                        if metrics is None:
+                            continue  # Skip displaying metrics if an error occurred
+                    else:
+                        metrics = generate_fairness_metrics(user_message, genai_message)
+
+                    expander_label = f"You: {user_message} | GenAI: {genai_message}"
+
+                    has_high_metric = any(
+                        float(value) >= 0.8 for value in metrics.values()
+                    )
+                    red_icon = "🔴" if has_high_metric else ""
+
+                    header_style = "font-size: 24px; font-weight: bold;"
+
+                    with st.expander(expander_label + " " + red_icon, expanded=False):
+                        for metric, value in metrics.items():
+                            color_style = "color:red;" if float(value) >= 0.8 else ""
+                            st.markdown(
+                                f"<div style='{color_style}'><b>{metric}:</b> {value}</div>",
+                                unsafe_allow_html=True,
+                            )
 
         st.markdown("</div>", unsafe_allow_html=True)
 
