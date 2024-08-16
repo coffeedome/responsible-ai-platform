@@ -21,3 +21,8 @@ This platform does the following:
    - Historical fairness
    - Warnings about outputs
    - Allows input of policies so that models follow those policies when generating content
+
+# Troubleshooting:
+
+An error occurred: An error occurred (ValidationException) when calling the CreateProcessingJob operation: Invalid image URI YOUR_SAGEMAKER_CLARIFY_IMAGE_URI. Please provide a valid Amazon Elastic Container Registry path of the Docker image to run.
+-> Sagemaker clarify URIs: https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-processing-job-configure-container.html

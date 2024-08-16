@@ -94,34 +94,46 @@ def main():
                         index += 1
 
                 if user_message or genai_message:
-                    if st.session_state.use_clarify:
-                        metrics = get_clarify_metrics(
-                            user_message,
-                            genai_message,
-                            s3_bucket_name,
-                            sagemaker_role_arn,
-                        )
-                        if metrics is None:
-                            continue  # Skip displaying metrics if an error occurred
-                    else:
-                        metrics = generate_fairness_metrics(user_message, genai_message)
-
-                    expander_label = f"You: {user_message} | GenAI: {genai_message}"
-
-                    has_high_metric = any(
-                        float(value) >= 0.8 for value in metrics.values()
-                    )
-                    red_icon = "🔴" if has_high_metric else ""
-
-                    header_style = "font-size: 24px; font-weight: bold;"
-
-                    with st.expander(expander_label + " " + red_icon, expanded=False):
-                        for metric, value in metrics.items():
-                            color_style = "color:red;" if float(value) >= 0.8 else ""
-                            st.markdown(
-                                f"<div style='{color_style}'><b>{metric}:</b> {value}</div>",
-                                unsafe_allow_html=True,
+                    try:
+                        if st.session_state.use_clarify:
+                            metrics = get_clarify_metrics(
+                                user_message,
+                                genai_message,
+                                s3_bucket_name,
+                                sagemaker_role_arn,
                             )
+                            if metrics is None:
+                                continue  # Skip displaying metrics if an error occurred
+                        else:
+                            metrics = generate_fairness_metrics(
+                                user_message, genai_message
+                            )
+
+                        expander_label = f"You: {user_message} | GenAI: {genai_message}"
+
+                        has_high_metric = any(
+                            float(value) >= 0.8 for value in metrics.values()
+                        )
+                        red_icon = "🔴" if has_high_metric else ""
+
+                        header_style = "font-size: 24px; font-weight: bold;"
+
+                        with st.expander(
+                            expander_label + " " + red_icon, expanded=False
+                        ):
+                            for metric, value in metrics.items():
+                                color_style = (
+                                    "color:red;" if float(value) >= 0.8 else ""
+                                )
+                                st.markdown(
+                                    f"<div style='{color_style}'><b>{metric}:</b> {value}</div>",
+                                    unsafe_allow_html=True,
+                                )
+                    except Exception as e:
+                        # If an error occurs, update the session state to show the error modal
+                        st.session_state.error_message = str(e)
+                        st.session_state.show_modal = True
+                        st.rerun()  # Rerun the script to show the modal
 
         st.markdown("</div>", unsafe_allow_html=True)
 
