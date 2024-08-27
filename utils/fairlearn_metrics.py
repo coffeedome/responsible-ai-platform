@@ -43,8 +43,8 @@ required_complex_data_features = df(
     ]
 )
 
-# We use traditional models for regression
-# We use LLM for NLP processing: resume, job descriptions, posts on linked in
+# We use traditional models for regression -> more practical for structured data/predictive modelling.
+# We use LLM for NLP processing: resume, job descriptions, posts on linked in - for CONTEXTUAL understanding
 # We also use LLM for Image processing: appearance, which could be a sensitive feature we need to watch out for!!!
 
 # Split data into features (input vars) and labels (target variable we want to predict)
